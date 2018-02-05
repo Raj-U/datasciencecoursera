@@ -1,0 +1,126 @@
+---
+title: "PracticalMLAssignmentSolution"
+author: "Raj Upendran"
+date: "Monday, February 05, 2018"
+output: html_document
+---
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+getwd()
+setwd("C:/Raj - Personal/CourseEra/Course 8- Practical Machine Learning/Assignment")
+getwd()
+
+## Preparing the overall environment
+library(caret);library(ggplot2);library(knitr);library(randomForest);library(rattle)
+set.seed(1234)
+
+training<- read.csv("./pml-training.csv")
+testing<- read.csv("./pml-testing.csv")
+dim(training);dim(testing)
+
+# create a partition with the training dataset 
+intrain  <- createDataPartition(training$classe, p=0.7, list=FALSE)
+training_set <- training[intrain, ]
+testing_set  <- training[-intrain, ]
+dim(training_set);dim(testing_set)
+
+# remove variables with Nearly Zero Variance
+NZV <- nearZeroVar(training_set)
+training_set <- training_set[, -NZV]
+testing_set  <- testing_set[, -NZV]
+dim(training_set);dim(testing_set)
+
+## remove the variables that are NA
+
+AllNA    <- sapply(training_set, function(x) mean(is.na(x))) > 0.95
+training_set <- training_set[, AllNA==FALSE]
+testing_set  <- testing_set[, AllNA==FALSE]
+dim(training_set);dim(testing_set)
+
+str(training_set)
+
+training_set <- training_set[, -(1:5)]
+testing_set  <- testing_set[, -(1:5)]
+dim(training_set);dim(testing_set)
+
+## Analyze the corelation between the various variables in the data set
+
+# my_num_data <- mydata[, sapply(mydata, is.numeric)]
+
+library(corrplot)
+corMatrix <- cor(training_set[, -54])
+corrplot(corMatrix, order = "FPC", method = "color", type = "lower", 
+         tl.cex = 0.8, tl.col = rgb(0, 0, 0))
+
+## applying random forest modeling for predicting the outcome
+cv <- trainControl(method="cv", number=3, verboseIter=FALSE)
+mod_rf <- train(classe ~ ., data=training_set, method="rf",
+                          trControl=cv)
+mod_rf$finalModel
+
+# predict the same on the test data
+predictrf <- predict(mod_rf, newdata=testing_set)
+cmrf <- confusionMatrix(predictrf, testing_set$classe)
+cmrf
+
+plot(cmrf$table, col = cmrf$byClass, 
+     main = paste("Random Forest - Accuracy =",
+                  round(cmrf$overall['Accuracy'], 4)))
+
+
+# modeling using decision tree
+library(rpart)
+library(rpart.plot)
+mod_dt <- rpart(classe ~ ., data=training_set, method="class")
+fancyRpartPlot(mod_dt)
+
+predictdt <- predict(mod_dt, newdata=testing_set, type="class")
+cfdt <- confusionMatrix(predictdt, testing_set$classe)
+cfdt
+
+plot(cfdt$table, col = cfdt$byClass, 
+     main = paste("Decision Tree - Accuracy =",
+                  round(cfdt$overall['Accuracy'], 4)))
+
+cv1 <- trainControl(method = "repeatedcv", number = 5, repeats = 1)
+mod_GBM  <- train(classe ~ ., data=training_set, method = "gbm",
+                    trControl = cv1, verbose = FALSE)
+mod_GBM$finalModel
+
+predictGBM <- predict(mod_GBM, newdata=testing_set)
+cmGBM <- confusionMatrix(predictGBM, testing_set$classe)
+cmGBM
+
+plot(cmGBM$table, col = cmGBM$byClass, 
+     main = paste("GBM - Accuracy =", round(cmGBM$overall['Accuracy'], 4)))
+
+predict_testing <- predict(mod_rf, newdata=testing)
+predict_testing
+
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+corrplot(corMatrix, order = "FPC", method = "color", type = "lower", 
+         tl.cex = 0.8, tl.col = rgb(0, 0, 0))
+
+plot(cmrf$table, col = cmrf$byClass, 
+     main = paste("Random Forest - Accuracy =",
+                  round(cmrf$overall['Accuracy'], 4)))
+
+
+plot(cfdt$table, col = cfdt$byClass, 
+     main = paste("Decision Tree - Accuracy =",
+                  round(cfdt$overall['Accuracy'], 4)))
+
+plot(cmGBM$table, col = cmGBM$byClass, 
+     main = paste("GBM - Accuracy =", round(cmGBM$overall['Accuracy'], 4)))
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
